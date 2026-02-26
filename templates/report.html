@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>장애 보고서 — {{ incident.alert_name }}</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+    --text: #e4e4e7; --muted: #888; --accent: #6366f1;
+    --red: #ef4444; --yellow: #eab308; --green: #22c55e; --blue: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: var(--bg); color: var(--text); padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .back { font-size: .8rem; margin-bottom: 1rem; display: inline-block; }
+  h1 { font-size: 1.2rem; margin-bottom: 1.5rem; }
+  h2 { font-size: .95rem; margin: 1.5rem 0 .75rem; padding-bottom: .3rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: .85rem; margin: 1rem 0 .5rem; color: var(--muted); }
+
+  .form-group { margin-bottom: .75rem; }
+  label.field { display: block; font-size: .7rem; color: var(--muted); margin-bottom: .25rem; font-weight: 600; }
+  input, textarea, select {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: .4rem .6rem; border-radius: .3rem;
+    font-size: .8rem; font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 2.5rem; }
+  select { color-scheme: dark; cursor: pointer; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .75rem; }
+
+  /* 타임라인 테이블 */
+  .tl-table { width: 100%; border-collapse: collapse; margin-bottom: .5rem; }
+  .tl-table th, .tl-table td { padding: .35rem .5rem; border: 1px solid var(--border); font-size: .75rem; }
+  .tl-table th { background: var(--surface); color: var(--muted); font-weight: 600; text-align: left; }
+  .tl-table input { border: none; background: transparent; padding: .2rem; font-size: .75rem; }
+  .btn-add-row { font-size: .7rem; background: none; border: 1px dashed var(--border); color: var(--muted); padding: .3rem .6rem; border-radius: .3rem; cursor: pointer; }
+  .btn-add-row:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* 조치 테이블 */
+  .action-table { width: 100%; border-collapse: collapse; margin-bottom: .5rem; }
+  .action-table th, .action-table td { padding: .35rem .5rem; border: 1px solid var(--border); font-size: .75rem; }
+  .action-table th { background: var(--surface); color: var(--muted); font-weight: 600; text-align: left; }
+  .action-table input { border: none; background: transparent; padding: .2rem; font-size: .75rem; width: 100%; color: var(--text); }
+
+  /* 하단 버튼 */
+  .bottom-actions { display: flex; gap: .75rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+  .btn { border: none; cursor: pointer; padding: .5rem 1rem; border-radius: .3rem; font-size: .8rem; font-weight: 600; color: #fff; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: var(--accent); }
+  .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  .btn-success { background: var(--green); }
+
+  .copied { position: fixed; top: 1rem; right: 1rem; background: var(--green); color: #fff; padding: .5rem 1rem; border-radius: .3rem; font-size: .8rem; font-weight: 600; opacity: 0; transition: opacity .3s; z-index: 100; }
+  .copied.show { opacity: 1; }
+
+  /* 미리보기 */
+  .preview { background: var(--surface); border: 1px solid var(--border); border-radius: .4rem; padding: 1rem; font-size: .75rem; white-space: pre-wrap; font-family: 'SF Mono', 'Fira Code', monospace; line-height: 1.5; max-height: 500px; overflow-y: auto; display: none; }
+</style>
+</head>
+<body>
+
+<a class="back" href="{{ B }}/incidents/{{ incident.id }}">← 인시던트 상세로</a>
+
+<h1>장애 보고서 작성</h1>
+
+<!-- 장애 개요 -->
+<h2>장애 개요</h2>
+<div class="form-group">
+  <label class="field">장애 제목</label>
+  <input id="f-title" value="{{ incident.alert_name }}">
+</div>
+<div class="row">
+  <div class="form-group">
+    <label class="field">발생 일시</label>
+    <input id="f-started" value="{{ incident.fired_at }}">
+  </div>
+  <div class="form-group">
+    <label class="field">복구 일시</label>
+    <input id="f-recovered" value="{{ incident.resolved_at or '' }}">
+  </div>
+</div>
+<div class="row3">
+  <div class="form-group">
+    <label class="field">장애 시간</label>
+    <input id="f-duration" value="{{ duration }}">
+  </div>
+  <div class="form-group">
+    <label class="field">심각도</label>
+    <select id="f-severity">
+      <option value="Critical" {% if incident.severity == 'critical' %}selected{% endif %}>Critical</option>
+      <option value="High" {% if incident.severity == 'warning' %}selected{% endif %}>High</option>
+      <option value="Medium" {% if incident.severity == 'info' %}selected{% endif %}>Medium</option>
+      <option value="Low">Low</option>
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="field">작성자</label>
+    <input id="f-author" value="">
+  </div>
+</div>
+<div class="form-group">
+  <label class="field">영향 범위</label>
+  <input id="f-scope" placeholder="예: 서비스 전체, 특정 API 등">
+</div>
+
+<!-- 장애 요약 -->
+<h2>장애 요약</h2>
+<div class="form-group">
+  <textarea id="f-summary" rows="2" placeholder="1~2문장으로 장애 상황 요약"></textarea>
+</div>
+
+<!-- 영향 -->
+<h2>영향</h2>
+<h3>사용자 영향</h3>
+<div class="row">
+  <div class="form-group">
+    <label class="field">영향 받은 사용자 수</label>
+    <input id="f-affected-users" placeholder="예: 약 500명">
+  </div>
+  <div class="form-group">
+    <label class="field">영향 받은 기능</label>
+    <input id="f-affected-features" placeholder="예: 로그인, 사진 업로드">
+  </div>
+</div>
+<div class="form-group">
+  <label class="field">사용자 체감</label>
+  <input id="f-user-impact" placeholder="예: 페이지 로딩 불가, 500 에러 발생">
+</div>
+<h3>비즈니스 영향</h3>
+<div class="form-group">
+  <textarea id="f-biz-impact" rows="2" placeholder="비즈니스에 미친 영향"></textarea>
+</div>
+
+<!-- 타임라인 -->
+<h2>타임라인</h2>
+<table class="tl-table" id="timeline-table">
+  <thead>
+    <tr><th style="width:100px">시간</th><th style="width:130px">이벤트</th><th>상세</th></tr>
+  </thead>
+  <tbody id="tl-body">
+  </tbody>
+</table>
+<button class="btn-add-row" onclick="addTimelineRow('','','')">+ 행 추가</button>
+
+<!-- 근본 원인 -->
+<h2>근본 원인 (Root Cause)</h2>
+<h3>직접 원인</h3>
+<div class="form-group">
+  <textarea id="f-direct-cause" rows="2" placeholder="장애가 발생한 직접적인 이유"></textarea>
+</div>
+<h3>근본 원인</h3>
+<div class="form-group">
+  <textarea id="f-root-cause" rows="2" placeholder="왜 직접 원인이 발생했는가?"></textarea>
+</div>
+<h3>원인 분석 (5 Whys)</h3>
+<div class="form-group">
+  <label class="field">1. Why</label>
+  <input id="f-why1">
+</div>
+<div class="form-group">
+  <label class="field">2. Why</label>
+  <input id="f-why2">
+</div>
+<div class="form-group">
+  <label class="field">3. Why</label>
+  <input id="f-why3">
+</div>
+<div class="form-group">
+  <label class="field">4. Why</label>
+  <input id="f-why4">
+</div>
+<div class="form-group">
+  <label class="field">5. Why</label>
+  <input id="f-why5">
+</div>
+
+<!-- 대응 내용 -->
+<h2>대응 내용</h2>
+<h3>수행한 조치</h3>
+<div class="form-group">
+  <textarea id="f-actions" rows="3" placeholder="1. 조치 내용&#10;2. 조치 내용&#10;3. 조치 내용"></textarea>
+</div>
+<h3>사용한 명령어/도구</h3>
+<div class="form-group">
+  <textarea id="f-commands" rows="3" placeholder="실행한 명령어 (코드 블록으로 출력됨)" style="font-family:'SF Mono','Fira Code',monospace;font-size:.75rem;"></textarea>
+</div>
+
+<!-- 해결 방법 -->
+<h2>해결 방법</h2>
+<div class="form-group">
+  <textarea id="f-resolution" rows="2" placeholder="어떻게 장애를 해결했는가?"></textarea>
+</div>
+
+<!-- 재발 방지 대책 -->
+<h2>재발 방지 대책</h2>
+<h3>단기 조치 (즉시)</h3>
+<table class="action-table" id="short-term-table">
+  <thead>
+    <tr><th>조치</th><th style="width:80px">담당</th><th style="width:90px">기한</th><th style="width:70px">상태</th></tr>
+  </thead>
+  <tbody id="st-body">
+    <tr><td><input></td><td><input></td><td><input></td><td><input></td></tr>
+  </tbody>
+</table>
+<button class="btn-add-row" onclick="addActionRow('st-body')">+ 행 추가</button>
+
+<h3>장기 조치 (개선)</h3>
+<table class="action-table" id="long-term-table">
+  <thead>
+    <tr><th>조치</th><th style="width:80px">담당</th><th style="width:90px">기한</th><th style="width:70px">상태</th></tr>
+  </thead>
+  <tbody id="lt-body">
+    <tr><td><input></td><td><input></td><td><input></td><td><input></td></tr>
+  </tbody>
+</table>
+<button class="btn-add-row" onclick="addActionRow('lt-body')">+ 행 추가</button>
+
+<!-- 교훈 -->
+<h2>교훈 (Lessons Learned)</h2>
+<h3>잘된 점</h3>
+<div class="form-group">
+  <textarea id="f-good" rows="2" placeholder="잘 대응한 부분"></textarea>
+</div>
+<h3>개선이 필요한 점</h3>
+<div class="form-group">
+  <textarea id="f-improve" rows="2" placeholder="개선이 필요한 부분"></textarea>
+</div>
+<h3>다음에 다르게 할 것</h3>
+<div class="form-group">
+  <textarea id="f-next" rows="2" placeholder="다음에 다르게 할 것"></textarea>
+</div>
+
+<!-- 관련 문서 -->
+<h2>관련 문서</h2>
+<div class="form-group">
+  <label class="field">런북</label>
+  <input id="f-runbook" placeholder="URL">
+</div>
+<div class="form-group">
+  <label class="field">모니터링 대시보드</label>
+  <input id="f-dashboard" placeholder="URL">
+</div>
+<div class="form-group">
+  <label class="field">관련 커밋/PR</label>
+  <input id="f-commits" placeholder="URL">
+</div>
+
+<!-- 하단 버튼 -->
+<div class="bottom-actions">
+  <button class="btn btn-primary" onclick="copyMarkdown()">Markdown 복사</button>
+  <button class="btn btn-secondary" onclick="togglePreview()">미리보기</button>
+</div>
+
+<div class="copied" id="copied-toast">클립보드에 복사됨</div>
+<pre class="preview" id="preview"></pre>
+
+<script>
+const B = '{{ B }}';
+
+// 인시던트 타임라인 데이터로 초기 행 채우기
+const events = {{ events_json | safe }};
+const eventLabels = {
+  'alert_fired': '장애 발생',
+  'acknowledged': '장애 인지',
+  'status_change': '상태 변경',
+  'memo': '메모',
+  'alert_resolved': '복구 완료'
+};
+
+function addTimelineRow(time, event, detail) {
+  const tbody = document.getElementById('tl-body');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input value="${esc(time)}"></td><td><input value="${esc(event)}"></td><td><input value="${esc(detail)}"></td>`;
+  tbody.appendChild(tr);
+}
+
+function addActionRow(tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td><input></td><td><input></td><td><input></td><td><input></td>';
+  tbody.appendChild(tr);
+}
+
+function esc(s) { return (s||'').replace(/"/g, '&quot;'); }
+
+// 초기 타임라인 채우기
+events.forEach(ev => {
+  const time = (ev.created_at || '').substring(11, 16);
+  const label = eventLabels[ev.event_type] || ev.event_type;
+  addTimelineRow(time, label, ev.note || '');
+});
+if (events.length === 0) {
+  addTimelineRow('', '', '');
+}
+
+function getVal(id) { return document.getElementById(id).value.trim(); }
+
+function getTableRows(tbodyId) {
+  const rows = [];
+  document.getElementById(tbodyId).querySelectorAll('tr').forEach(tr => {
+    const cells = [];
+    tr.querySelectorAll('input').forEach(inp => cells.push(inp.value.trim()));
+    if (cells.some(c => c)) rows.push(cells);
+  });
+  return rows;
+}
+
+function buildMarkdown() {
+  const today = new Date().toISOString().slice(0, 10);
+  let md = '';
+
+  md += '# 장애 보고서\n\n';
+  md += '## 장애 개요\n\n';
+  md += '| 항목 | 내용 |\n| --- | --- |\n';
+  md += `| 장애 제목 | ${getVal('f-title')} |\n`;
+  md += `| 발생 일시 | ${getVal('f-started')} |\n`;
+  md += `| 복구 일시 | ${getVal('f-recovered')} |\n`;
+  md += `| 장애 시간 | ${getVal('f-duration')} |\n`;
+  md += `| 심각도 | ${getVal('f-severity')} |\n`;
+  md += `| 영향 범위 | ${getVal('f-scope')} |\n`;
+  md += `| 작성자 | ${getVal('f-author')} |\n`;
+  md += `| 작성일 | ${today} |\n`;
+
+  md += '\n## 장애 요약\n\n';
+  md += `> ${getVal('f-summary') || '(미작성)'}\n`;
+
+  md += '\n## 영향\n\n';
+  md += '### 사용자 영향\n\n';
+  md += `* 영향 받은 사용자 수: ${getVal('f-affected-users')}\n`;
+  md += `* 영향 받은 기능: ${getVal('f-affected-features')}\n`;
+  md += `* 사용자 체감: ${getVal('f-user-impact')}\n`;
+  md += '\n### 비즈니스 영향\n\n';
+  const biz = getVal('f-biz-impact');
+  if (biz) biz.split('\n').forEach(l => { md += `* ${l}\n`; });
+  else md += '* \n';
+
+  md += '\n## 타임라인\n\n';
+  md += '| 시간 | 이벤트 | 상세 |\n| --- | --- | --- |\n';
+  getTableRows('tl-body').forEach(r => {
+    md += `| ${r[0]} | ${r[1]} | ${r[2]} |\n`;
+  });
+
+  md += '\n## 근본 원인 (Root Cause)\n\n';
+  md += '### 직접 원인\n\n';
+  md += `${getVal('f-direct-cause') || '(미작성)'}\n`;
+  md += '\n### 근본 원인\n\n';
+  md += `${getVal('f-root-cause') || '(미작성)'}\n`;
+  md += '\n### 원인 분석 (5 Whys)\n\n';
+  for (let i = 1; i <= 5; i++) {
+    const w = getVal('f-why' + i);
+    md += `${i}. Why: ${w}\n`;
+  }
+
+  md += '\n## 대응 내용\n\n';
+  md += '### 수행한 조치\n\n';
+  const acts = getVal('f-actions');
+  if (acts) {
+    acts.split('\n').forEach((l, i) => {
+      const line = l.replace(/^\d+\.\s*/, '');
+      md += `${i + 1}. ${line}\n`;
+    });
+  } else { md += '1. \n'; }
+
+  md += '\n### 사용한 명령어/도구\n\n';
+  const cmds = getVal('f-commands');
+  if (cmds) { md += '```bash\n' + cmds + '\n```\n'; }
+  else { md += '```bash\n# \n```\n'; }
+
+  md += '\n## 해결 방법\n\n';
+  md += `> ${getVal('f-resolution') || '(미작성)'}\n`;
+
+  md += '\n## 재발 방지 대책\n\n';
+  md += '### 단기 조치 (즉시)\n\n';
+  md += '| 조치 | 담당 | 기한 | 상태 |\n| --- | --- | --- | --- |\n';
+  getTableRows('st-body').forEach(r => {
+    md += `| ${r[0]} | ${r[1]} | ${r[2]} | ${r[3]} |\n`;
+  });
+
+  md += '\n### 장기 조치 (개선)\n\n';
+  md += '| 조치 | 담당 | 기한 | 상태 |\n| --- | --- | --- | --- |\n';
+  getTableRows('lt-body').forEach(r => {
+    md += `| ${r[0]} | ${r[1]} | ${r[2]} | ${r[3]} |\n`;
+  });
+
+  md += '\n## 교훈 (Lessons Learned)\n\n';
+  md += '### 잘된 점\n\n';
+  const good = getVal('f-good');
+  if (good) good.split('\n').forEach(l => { md += `* ${l}\n`; });
+  else md += '* \n';
+
+  md += '\n### 개선이 필요한 점\n\n';
+  const imp = getVal('f-improve');
+  if (imp) imp.split('\n').forEach(l => { md += `* ${l}\n`; });
+  else md += '* \n';
+
+  md += '\n### 다음에 다르게 할 것\n\n';
+  const nxt = getVal('f-next');
+  if (nxt) nxt.split('\n').forEach(l => { md += `* ${l}\n`; });
+  else md += '* \n';
+
+  md += '\n## 관련 문서\n\n';
+  md += `* 런북: ${getVal('f-runbook')}\n`;
+  md += `* 모니터링 대시보드: ${getVal('f-dashboard')}\n`;
+  md += `* 관련 커밋/PR: ${getVal('f-commits')}\n`;
+
+  return md;
+}
+
+function copyMarkdown() {
+  const md = buildMarkdown();
+  navigator.clipboard.writeText(md).then(() => {
+    const toast = document.getElementById('copied-toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+  });
+}
+
+function togglePreview() {
+  const el = document.getElementById('preview');
+  if (el.style.display === 'block') {
+    el.style.display = 'none';
+  } else {
+    el.textContent = buildMarkdown();
+    el.style.display = 'block';
+  }
+}
+</script>
+
+</body>
+</html>

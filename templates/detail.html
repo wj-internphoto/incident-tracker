@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ incident.alert_name }} — Incident Tracker</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+    --text: #e4e4e7; --muted: #888; --accent: #6366f1;
+    --red: #ef4444; --yellow: #eab308; --green: #22c55e; --blue: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: var(--bg); color: var(--text); padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .back { font-size: .8rem; margin-bottom: 1rem; display: inline-block; }
+  .header { margin-bottom: 1.5rem; }
+  .header h1 { font-size: 1.2rem; margin-bottom: .5rem; display: flex; align-items: center; gap: .5rem; }
+
+  .badge { font-size: .65rem; padding: .15rem .4rem; border-radius: .25rem; font-weight: 700; text-transform: uppercase; }
+  .badge.critical { background: rgba(239,68,68,.2); color: var(--red); }
+  .badge.warning { background: rgba(234,179,8,.2); color: var(--yellow); }
+  .badge.info { background: rgba(59,130,246,.2); color: var(--blue); }
+
+  .status-badge { font-size: .7rem; padding: .15rem .5rem; border-radius: .25rem; font-weight: 600; }
+  .status-badge.firing { background: rgba(239,68,68,.15); color: var(--red); }
+  .status-badge.acknowledged { background: rgba(59,130,246,.15); color: var(--blue); }
+  .status-badge.investigating { background: rgba(234,179,8,.15); color: var(--yellow); }
+  .status-badge.resolved { background: rgba(34,197,94,.15); color: var(--green); }
+
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .5rem; margin-bottom: 1.5rem; }
+  .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: .4rem; padding: .6rem; }
+  .info-card .label { font-size: .65rem; color: var(--muted); margin-bottom: .2rem; }
+  .info-card .value { font-size: .85rem; font-weight: 600; }
+
+  /* 타임라인 */
+  .timeline { position: relative; padding-left: 1.5rem; }
+  .timeline::before { content: ''; position: absolute; left: .45rem; top: .5rem; bottom: .5rem; width: 2px; background: var(--border); }
+  .tl-item { position: relative; margin-bottom: 1rem; }
+  .tl-dot { position: absolute; left: -1.1rem; top: .35rem; width: .55rem; height: .55rem; border-radius: 50%; }
+  .tl-dot.alert_fired { background: var(--red); }
+  .tl-dot.acknowledged { background: var(--blue); }
+  .tl-dot.status_change { background: var(--yellow); }
+  .tl-dot.memo { background: var(--accent); }
+  .tl-dot.alert_resolved { background: var(--green); }
+
+  .tl-content { background: var(--surface); border: 1px solid var(--border); border-radius: .4rem; padding: .6rem .75rem; }
+  .tl-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .25rem; }
+  .tl-type { font-size: .75rem; font-weight: 600; }
+  .tl-time { font-size: .7rem; color: var(--muted); }
+  .tl-note { font-size: .8rem; color: var(--text); line-height: 1.4; }
+  .tl-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .7rem; padding: .1rem .3rem; border-radius: .2rem; opacity: 0; transition: opacity .15s; }
+  .tl-content:hover .tl-del { opacity: 1; }
+  .tl-del:hover { color: var(--red); background: rgba(239,68,68,.1); }
+
+  /* 액션 영역 */
+  .action-section { background: var(--surface); border: 1px solid var(--border); border-radius: .5rem; padding: 1rem; margin-top: 1.5rem; }
+  .action-section h3 { font-size: .85rem; margin-bottom: .75rem; }
+
+  .action-row { display: flex; gap: .5rem; margin-bottom: .5rem; }
+  .btn { border: none; cursor: pointer; padding: .4rem .75rem; border-radius: .3rem; font-size: .75rem; font-weight: 600; color: #fff; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-ack { background: var(--blue); }
+  .btn-inv { background: var(--yellow); color: #000; }
+  .btn-res { background: var(--green); }
+  .btn-export { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+
+  textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: .5rem; border-radius: .3rem; font-size: .8rem; resize: vertical; min-height: 3rem; margin-bottom: .5rem; font-family: inherit; }
+  textarea::placeholder { color: #555; }
+  .btn-memo { background: var(--accent); }
+
+  /* labels */
+  .labels { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: 1rem; }
+  .label-tag { font-size: .65rem; padding: .12rem .4rem; border-radius: .2rem; background: rgba(99,102,241,.12); color: var(--accent); border: 1px solid rgba(99,102,241,.2); }
+</style>
+</head>
+<body>
+
+<a class="back" href="{{ B }}/">← 목록으로</a>
+
+<div class="header">
+  <h1>
+    <span class="badge {{ incident.severity }}">{{ incident.severity }}</span>
+    {{ incident.alert_name }}
+    <span class="status-badge {{ incident.status }}">{{ incident.status }}</span>
+  </h1>
+</div>
+
+{% if incident._labels %}
+<div class="labels">
+  {% for k, v in incident._labels.items() if k not in ('alertname', 'severity', '__name__', 'grafana_folder') %}
+  <span class="label-tag">{{ k }}={{ v }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="info-grid">
+  <div class="info-card">
+    <div class="label">발생</div>
+    <div class="value">{{ incident.fired_at }}</div>
+  </div>
+  <div class="info-card">
+    <div class="label">인지</div>
+    <div class="value">{{ incident.acknowledged_at or '-' }}</div>
+  </div>
+  <div class="info-card">
+    <div class="label">해소</div>
+    <div class="value">{{ incident.resolved_at or '-' }}</div>
+  </div>
+  <div class="info-card">
+    <div class="label">해결 방법</div>
+    <div class="value">{{ incident.resolution_type or '-' }}</div>
+  </div>
+</div>
+
+<h2 style="font-size:.9rem; margin-bottom:.75rem;">타임라인</h2>
+
+<div class="timeline">
+  {% for ev in events %}
+  <div class="tl-item">
+    <div class="tl-dot {{ ev.event_type }}"></div>
+    <div class="tl-content">
+      <div class="tl-header">
+        <span class="tl-type">{{ event_icons.get(ev.event_type, ev.event_type) }}</span>
+        <span style="display:flex;align-items:center;gap:.3rem;">
+          {% if ev.event_type == 'memo' %}
+          <button class="tl-del" onclick="delEvent({{ ev.id }})" title="삭제">✕</button>
+          {% endif %}
+          <span class="tl-time">{{ ev.created_at }}</span>
+        </span>
+      </div>
+      {% if ev.note %}
+      <div class="tl-note">{{ ev.note }}</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if incident.status != 'resolved' %}
+<div class="action-section">
+  <h3>액션</h3>
+
+  <div class="action-row">
+    {% if incident.status == 'firing' %}
+    <button class="btn btn-ack" onclick="changeStatus('acknowledged')">👀 확인</button>
+    {% endif %}
+    {% if incident.status in ('firing', 'acknowledged') %}
+    <button class="btn btn-inv" onclick="changeStatus('investigating')">🔍 조사 착수</button>
+    {% endif %}
+    <button class="btn btn-res" onclick="changeStatus('resolved')">✅ 해결</button>
+    <a class="btn btn-export" href="{{ B }}/api/incidents/{{ incident.id }}/export" target="_blank">📄 내보내기</a>
+    <a class="btn btn-export" href="{{ B }}/incidents/{{ incident.id }}/report">📋 장애 보고서</a>
+  </div>
+
+  <textarea id="note" placeholder="메모 입력... (상태 변경 시 함께 기록됨)"></textarea>
+  <button class="btn btn-memo" onclick="addMemo()">📝 메모 추가</button>
+</div>
+{% else %}
+<div class="action-section">
+  <a class="btn btn-export" href="{{ B }}/api/incidents/{{ incident.id }}/export" target="_blank">📄 Markdown 내보내기</a>
+  <a class="btn btn-export" href="{{ B }}/incidents/{{ incident.id }}/report" style="margin-left:.5rem;">📋 장애 보고서</a>
+</div>
+{% endif %}
+
+<script>
+const B = '{{ B }}';
+const incId = {{ incident.id }};
+let _busy = false;
+
+async function changeStatus(status) {
+  if (_busy) return;
+  const note = document.getElementById('note').value.trim();
+  if (status === 'resolved' && !note) {
+    alert('해결 시 원인/조치사항 메모는 필수입니다.');
+    document.getElementById('note').focus();
+    return;
+  }
+  _busy = true;
+  await fetch(B + '/api/incidents/' + incId, {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status, note})
+  });
+  location.reload();
+}
+
+async function delEvent(evId) {
+  if (_busy) return;
+  if (!confirm('이 메모를 삭제하시겠습니까?')) return;
+  _busy = true;
+  await fetch(B + '/api/timeline/' + evId, { method: 'DELETE' });
+  location.reload();
+}
+
+async function addMemo() {
+  if (_busy) return;
+  _busy = true;
+  const el = document.getElementById('note');
+  const note = el.value.trim();
+  if (!note) { _busy = false; return el.focus(); }
+  await fetch(B + '/api/incidents/' + incId + '/memo', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({note})
+  });
+  el.value = '';
+  location.reload();
+}
+</script>
+
+</body>
+</html>

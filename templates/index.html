@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Incident Tracker</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+    --text: #e4e4e7; --muted: #888; --accent: #6366f1;
+    --red: #ef4444; --yellow: #eab308; --green: #22c55e; --blue: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: var(--bg); color: var(--text); padding: 1.5rem; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.3rem; margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+  h2 { font-size: 1rem; color: var(--muted); margin-bottom: .75rem; display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+  .count { background: var(--red); color: #fff; font-size: .75rem; padding: .1rem .5rem; border-radius: 999px; }
+  .count.ok { background: var(--green); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: .5rem; padding: .875rem; margin-bottom: .5rem; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .25rem; }
+  .card-header a { color: var(--text); text-decoration: none; font-weight: 600; }
+  .card-header a:hover { color: var(--accent); }
+
+  .badge { font-size: .65rem; padding: .15rem .4rem; border-radius: .25rem; font-weight: 700; text-transform: uppercase; }
+  .badge.critical { background: rgba(239,68,68,.2); color: var(--red); }
+  .badge.warning { background: rgba(234,179,8,.2); color: var(--yellow); }
+  .badge.info { background: rgba(59,130,246,.2); color: var(--blue); }
+
+  .status { font-size: .7rem; padding: .15rem .4rem; border-radius: .25rem; }
+  .status.firing { background: rgba(239,68,68,.15); color: var(--red); }
+  .status.acknowledged { background: rgba(59,130,246,.15); color: var(--blue); }
+  .status.investigating { background: rgba(234,179,8,.15); color: var(--yellow); }
+  .status.resolved { background: rgba(34,197,94,.15); color: var(--green); }
+
+  .meta { font-size: .75rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; }
+  .elapsed { color: var(--red); font-weight: 600; }
+  .actions { display: flex; gap: .4rem; align-items: center; margin-top: .5rem; }
+  .btn { border: none; cursor: pointer; padding: .35rem .65rem; border-radius: .3rem; font-size: .75rem; font-weight: 600; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-ack { background: var(--blue); color: #fff; }
+  .btn-send { background: var(--accent); color: #fff; }
+  .memo-input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: .35rem .5rem; border-radius: .3rem; font-size: .75rem; }
+  .memo-input::placeholder { color: #555; }
+
+  /* labels */
+  .labels { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .35rem; }
+  .label-tag { font-size: .6rem; padding: .1rem .35rem; border-radius: .2rem; background: rgba(99,102,241,.12); color: var(--accent); border: 1px solid rgba(99,102,241,.2); }
+
+  .resolved-card { opacity: .7; }
+  .resolved-card:hover { opacity: 1; }
+  .resolved-info { font-size: .75rem; color: var(--muted); }
+
+  .empty { color: var(--muted); font-size: .85rem; padding: 1.5rem; text-align: center; }
+  .export-link { font-size: .75rem; color: var(--accent); text-decoration: none; margin-left: auto; }
+  .export-link:hover { text-decoration: underline; }
+
+  .section { margin-bottom: 2rem; }
+
+  /* 필터 */
+  .filter-bar { display: flex; gap: .5rem; align-items: center; margin-bottom: .75rem; flex-wrap: wrap; }
+  .filter-bar input[type="date"] { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: .3rem .5rem; border-radius: .3rem; font-size: .75rem; color-scheme: dark; cursor: pointer; }
+  .filter-bar select { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: .3rem .5rem; border-radius: .3rem; font-size: .75rem; color-scheme: dark; cursor: pointer; }
+  .filter-bar label { font-size: .7rem; color: var(--muted); }
+  .btn-filter { background: var(--accent); color: #fff; }
+  .btn-reset { background: var(--surface); border: 1px solid var(--border); color: var(--muted); text-decoration: none; }
+
+  /* 자동 새로고침 표시 */
+  .auto-refresh { font-size: .7rem; color: var(--muted); margin-left: auto; display: flex; align-items: center; gap: .3rem; }
+  .auto-refresh .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+  /* 페이지네이션 */
+  .pagination { display: flex; gap: .3rem; align-items: center; justify-content: center; margin-top: .75rem; }
+  .pagination a, .pagination span { padding: .3rem .6rem; border-radius: .3rem; font-size: .75rem; text-decoration: none; }
+  .pagination a { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  .pagination a:hover { border-color: var(--accent); color: var(--accent); }
+  .pagination .current { background: var(--accent); color: #fff; font-weight: 600; }
+  .pagination .disabled { opacity: .3; pointer-events: none; }
+  .page-info { font-size: .7rem; color: var(--muted); text-align: center; margin-top: .3rem; }
+</style>
+</head>
+<body>
+
+<h1>📋 Incident Tracker <span class="auto-refresh"><span class="dot"></span>30초 자동 갱신</span></h1>
+
+<!-- 공통 필터 -->
+<form class="filter-bar" method="get" action="{{ B }}/">
+  <label>알람</label>
+  <select name="alert_name">
+    <option value="">전체</option>
+    {% for name in alert_names %}
+    <option value="{{ name }}" {% if name == alert_name %}selected{% endif %}>{{ name }}</option>
+    {% endfor %}
+  </select>
+  <label>심각도</label>
+  <select name="severity">
+    <option value="">전체</option>
+    {% for sev in severities %}
+    <option value="{{ sev }}" {% if sev == severity %}selected{% endif %}>{{ sev }}</option>
+    {% endfor %}
+  </select>
+  <label>시작</label>
+  <input type="date" name="date_from" value="{{ date_from }}">
+  <label>종료</label>
+  <input type="date" name="date_to" value="{{ date_to }}">
+  <button type="submit" class="btn btn-filter">검색</button>
+  {% if date_from or date_to or alert_name or severity %}
+  <a class="btn btn-reset" href="{{ B }}/">초기화</a>
+  {% endif %}
+</form>
+
+<div class="section">
+  <h2>🔴 현재 장애 <span class="count">{{ active|length }}</span></h2>
+
+  {% if not active %}
+  <div class="card"><div class="empty">현재 활성 인시던트가 없습니다</div></div>
+  {% endif %}
+
+  {% for inc in active %}
+  <div class="card" id="inc-{{ inc.id }}">
+    <div class="card-header">
+      <div>
+        <span class="badge {{ inc.severity }}">{{ inc.severity }}</span>
+        <a href="{{ B }}/incidents/{{ inc.id }}">{{ inc.alert_name }}</a>
+        <span class="status {{ inc.status }}">{{ inc.status }}</span>
+      </div>
+      <div class="meta">
+        <span class="elapsed" data-fired="{{ inc.fired_at }}"></span>
+        <span>{{ inc.fired_at }}</span>
+      </div>
+    </div>
+    {% if inc._labels %}
+    <div class="labels">
+      {% for k, v in inc._labels.items() if k not in ('alertname', 'severity', '__name__', 'grafana_folder') %}
+      <span class="label-tag">{{ k }}={{ v }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="actions">
+      {% if inc.status == 'firing' %}
+      <button class="btn btn-ack" onclick="ack({{ inc.id }})">👀 확인</button>
+      {% endif %}
+      <input class="memo-input" id="memo-{{ inc.id }}" placeholder="메모 입력..." onkeydown="if(event.key==='Enter')sendMemo({{ inc.id }})">
+      <button class="btn btn-send" onclick="sendMemo({{ inc.id }})">전송</button>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="section">
+  <h2>🟢 해결된 인시던트 <span class="count ok">{{ total_resolved }}</span>
+    <a class="export-link" href="{{ B }}/api/export" target="_blank">📄 전체 리포트</a>
+  </h2>
+
+  {% if not resolved %}
+  <div class="card"><div class="empty">해결된 인시던트가 없습니다</div></div>
+  {% endif %}
+
+  {% for inc in resolved %}
+  <div class="card resolved-card">
+    <div class="card-header">
+      <div>
+        <span class="badge {{ inc.severity }}">{{ inc.severity }}</span>
+        <a href="{{ B }}/incidents/{{ inc.id }}">{{ inc.alert_name }}</a>
+        <span class="status resolved">resolved</span>
+      </div>
+      <div class="resolved-info">
+        {{ inc.resolved_at }} · {{ inc.resolution_type or '-' }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if total_pages > 1 %}
+  {% set qp = [] %}
+  {% if date_from %}{% set _ = qp.append('date_from=' + date_from) %}{% endif %}
+  {% if date_to %}{% set _ = qp.append('date_to=' + date_to) %}{% endif %}
+  {% if alert_name %}{% set _ = qp.append('alert_name=' + alert_name) %}{% endif %}
+  {% if severity %}{% set _ = qp.append('severity=' + severity) %}{% endif %}
+  {% set qs = '&' + '&'.join(qp) if qp else '' %}
+  <div class="pagination">
+    {% if page > 1 %}
+    <a href="{{ B }}/?page={{ page - 1 }}{{ qs }}">←</a>
+    {% else %}
+    <span class="disabled">←</span>
+    {% endif %}
+
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == page %}
+      <span class="current">{{ p }}</span>
+      {% elif p <= 3 or p > total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+      <a href="{{ B }}/?page={{ p }}{{ qs }}">{{ p }}</a>
+      {% elif p == 4 and page > 5 %}
+      <span style="color:var(--muted)">…</span>
+      {% elif p == total_pages - 2 and page < total_pages - 4 %}
+      <span style="color:var(--muted)">…</span>
+      {% endif %}
+    {% endfor %}
+
+    {% if page < total_pages %}
+    <a href="{{ B }}/?page={{ page + 1 }}{{ qs }}">→</a>
+    {% else %}
+    <span class="disabled">→</span>
+    {% endif %}
+  </div>
+  <div class="page-info">{{ total_resolved }}건 중 {{ (page-1)*20+1 }}–{{ [page*20, total_resolved]|min }}건</div>
+  {% endif %}
+</div>
+
+<script>
+const B = '{{ B }}';
+let _busy = false;
+let _typing = false;
+
+// 경과 시간 표시
+function updateElapsed() {
+  const now = new Date();
+  document.querySelectorAll('[data-fired]').forEach(el => {
+    const fired = new Date(el.dataset.fired.replace(' ', 'T') + '+09:00');
+    const diff = Math.floor((now - fired) / 1000);
+    if (diff < 60) el.textContent = '방금 전';
+    else if (diff < 3600) el.textContent = Math.floor(diff / 60) + '분 전';
+    else if (diff < 86400) el.textContent = Math.floor(diff / 3600) + '시간 전';
+    else el.textContent = Math.floor(diff / 86400) + '일 전';
+  });
+}
+updateElapsed();
+setInterval(updateElapsed, 30000);
+
+// 자동 새로고침 (30초, 입력 중이면 건너뜀)
+setInterval(() => {
+  if (!_typing && !_busy) location.reload();
+}, 30000);
+
+// 입력 감지
+document.querySelectorAll('.memo-input').forEach(el => {
+  el.addEventListener('focus', () => _typing = true);
+  el.addEventListener('blur', () => _typing = false);
+});
+
+async function ack(id) {
+  if (_busy) return;
+  _busy = true;
+  const memoEl = document.getElementById('memo-' + id);
+  const note = memoEl ? memoEl.value : '';
+  await fetch(B + '/api/incidents/' + id + '/ack', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({note: note || ''})
+  });
+  location.reload();
+}
+
+async function sendMemo(id) {
+  if (_busy) return;
+  _busy = true;
+  const el = document.getElementById('memo-' + id);
+  const note = el.value.trim();
+  if (!note) { _busy = false; return el.focus(); }
+  await fetch(B + '/api/incidents/' + id + '/memo', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({note})
+  });
+  el.value = '';
+  location.reload();
+}
+</script>
+
+</body>
+</html>
