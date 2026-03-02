@@ -18,27 +18,6 @@
   .page-header h1 { font-size: 1.3rem; }
   .back-link { color: var(--accent); text-decoration: none; font-size: .8rem; padding: .25rem .6rem; border: 1px solid var(--accent); border-radius: .3rem; }
   .back-link:hover { background: rgba(99,102,241,.15); }
-  .subtitle { font-size: .8rem; color: var(--muted); margin-bottom: 1.25rem; }
-
-  /* 듀얼 경로 배너 */
-  .dual-path { display: flex; gap: .75rem; margin-bottom: 1.5rem; }
-  .path-card { flex: 1; border-radius: .6rem; padding: .875rem 1rem; text-align: center; }
-  .path-primary { background: #1a2332; border: 1.5px solid var(--blue); }
-  .path-backup  { background: var(--surface); border: 1.5px solid var(--border); }
-  .path-label { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: .25rem; }
-  .path-primary .path-label { color: var(--blue); }
-  .path-backup  .path-label { color: var(--muted); }
-  .path-stat { font-size: 1.75rem; font-weight: 800; margin-bottom: .1rem; }
-  .path-primary .path-stat { color: var(--blue); }
-  .path-backup  .path-stat { color: var(--muted); }
-  .path-stat small { font-size: .8rem; font-weight: 500; }
-  .path-primary .path-stat small { color: #79c0ff; }
-  .path-backup  .path-stat small { color: #6e7681; }
-  .path-desc { font-size: .7rem; color: var(--muted); }
-  .path-primary .path-desc { color: #79c0ff; }
-
-  .arrow-down { text-align: center; color: var(--border); font-size: 1.1rem; margin: .25rem 0 1rem; letter-spacing: 8px; }
-
   /* 계층 */
   .layer { margin-bottom: 1rem; border-radius: .75rem; padding: 1rem; }
   .layer-header { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; padding-left: .25rem; }
@@ -119,23 +98,6 @@
   .layer-5 .group-name { color: #f85149; }
   .layer-5 .group-badge { background: rgba(218,54,51,.1); color: #ff7b72; }
 
-  /* 백업 섹션 */
-  .backup-section {
-    margin-top: 1.5rem;
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: .75rem; padding: 1rem;
-  }
-  .backup-section .layer-num { background: #484f58; }
-  .backup-section .layer-title { color: var(--muted); }
-  .backup-section .group-name { color: var(--muted); }
-  .backup-section .group-badge { background: rgba(72,79,88,.1); color: var(--muted); }
-  .backup-section .layer-count { background: rgba(72,79,88,.13); color: var(--muted); }
-  .backup-tag {
-    display: inline-block; font-size: .55rem; font-weight: 700;
-    padding: .1rem .4rem; border-radius: .35rem;
-    background: rgba(72,79,88,.13); color: var(--muted);
-    margin-left: .5rem; vertical-align: middle;
-  }
 </style>
 </head>
 <body>
@@ -144,24 +106,6 @@
   <h1>알람 규칙 현황</h1>
   <a class="back-link" href="{{ B }}/">← 인시던트 목록</a>
 </div>
-<p class="subtitle">듀얼 경로: Grafana Alerting(주) + PrometheusRule(백업) · Dooray 웹훅 알림</p>
-
-<!-- 듀얼 경로 배너 -->
-<div class="dual-path">
-  <div class="path-card path-primary">
-    <div class="path-label">Primary — Grafana Alerting</div>
-    <div class="path-stat">54<small> rules</small></div>
-    <div class="path-desc">13 그룹 · Grafana → Dooray Webhook</div>
-  </div>
-  <div class="path-card path-backup">
-    <div class="path-label">Backup — PrometheusRule</div>
-    <div class="path-stat">12<small> rules</small></div>
-    <div class="path-desc">3 그룹 · Prometheus → Alertmanager → Dooray</div>
-  </div>
-</div>
-
-<div class="arrow-down">▼ ▼ ▼</div>
-
 <!-- Layer 1: 사용자 경험 -->
 <div class="layer layer-1">
   <div class="layer-header">
@@ -628,111 +572,6 @@
         <div class="rule-info">
           <div class="rule-title">Terraform Drift 체크 미실행</div>
           <div class="rule-meta"><span>last_check &gt; 48h</span><span>즉시</span><span>noData=Alerting</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Backup: PrometheusRule -->
-<div class="backup-section">
-  <div class="layer-header">
-    <div class="layer-num">⚡</div>
-    <div class="layer-title">PrometheusRule 백업 경로</div>
-    <span class="backup-tag">Prometheus → Alertmanager → Dooray</span>
-    <div class="layer-count">12 rules</div>
-  </div>
-  <div class="group-cards">
-    <div class="group-card">
-      <div class="group-name">photo-backend-alerts <span class="group-badge">5 rules</span></div>
-      <div class="rule">
-        <span class="sev sev-critical">CRITICAL</span>
-        <div class="rule-info">
-          <div class="rule-title">PhotoBackendHighErrorRate</div>
-          <div class="rule-meta"><span>4xx+5xx &gt; 5%</span><span>for: 2m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-warning">WARNING</span>
-        <div class="rule-info">
-          <div class="rule-title">PhotoBackendSlowResponse</div>
-          <div class="rule-meta"><span>P95 &gt; 1s</span><span>for: 3m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-warning">WARNING</span>
-        <div class="rule-info">
-          <div class="rule-title">PhotoBackendHighMemory</div>
-          <div class="rule-meta"><span>RSS &gt; 400MB</span><span>for: 5m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-critical">CRITICAL</span>
-        <div class="rule-info">
-          <div class="rule-title">PhotoBackendDown</div>
-          <div class="rule-meta"><span>up == 0</span><span>for: 2m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-warning">WARNING</span>
-        <div class="rule-info">
-          <div class="rule-title">PhotoBackendFrequentRestarts</div>
-          <div class="rule-meta"><span>restart &gt; 3/1h</span><span>for: 5m</span></div>
-        </div>
-      </div>
-    </div>
-    <div class="group-card">
-      <div class="group-name">blackbox-alerts <span class="group-badge">3 rules</span></div>
-      <div class="rule">
-        <span class="sev sev-critical">CRITICAL</span>
-        <div class="rule-info">
-          <div class="rule-title">BlackboxProbeFailed</div>
-          <div class="rule-meta"><span>probe_success == 0</span><span>for: 3m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-warning">WARNING</span>
-        <div class="rule-info">
-          <div class="rule-title">BlackboxProbeHttpError</div>
-          <div class="rule-meta"><span>status ≠ 200</span><span>for: 3m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-warning">WARNING</span>
-        <div class="rule-info">
-          <div class="rule-title">BlackboxProbeSlow</div>
-          <div class="rule-meta"><span>duration &gt; 5s</span><span>for: 5m</span></div>
-        </div>
-      </div>
-    </div>
-    <div class="group-card">
-      <div class="group-name">mysql-exporter-alerts <span class="group-badge">4 rules</span></div>
-      <div class="rule">
-        <span class="sev sev-critical">CRITICAL</span>
-        <div class="rule-info">
-          <div class="rule-title">MySQLDown</div>
-          <div class="rule-meta"><span>mysql_up == 0</span><span>for: 3m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-warning">WARNING</span>
-        <div class="rule-info">
-          <div class="rule-title">MySQLConnectionsHigh</div>
-          <div class="rule-meta"><span>connections &gt; 80%</span><span>for: 5m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-warning">WARNING</span>
-        <div class="rule-info">
-          <div class="rule-title">MySQLSlowQueries</div>
-          <div class="rule-meta"><span>&gt; 5건/min</span><span>for: 5m</span></div>
-        </div>
-      </div>
-      <div class="rule">
-        <span class="sev sev-warning">WARNING</span>
-        <div class="rule-info">
-          <div class="rule-title">MySQLReplicationLag</div>
-          <div class="rule-meta"><span>lag &gt; 30s</span><span>for: 5m</span></div>
         </div>
       </div>
     </div>
