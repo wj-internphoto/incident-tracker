@@ -213,13 +213,13 @@ async def update_incident(incident_id: int, request: Request):
         raise HTTPException(400, "해결 시 원인/조치사항 메모는 필수입니다")
 
     with get_db() as db:
-        row = db.execute("SELECT id, status FROM incidents WHERE id = ?", (incident_id,)).fetchone()
+        row = db.execute("SELECT id, status, acknowledged_at FROM incidents WHERE id = ?", (incident_id,)).fetchone()
         if not row:
             raise HTTPException(404, "인시던트를 찾을 수 없습니다")
 
         old_status = row["status"]
         updates = {"status": new_status}
-        if new_status == "acknowledged" and not row.get("acknowledged_at"):
+        if new_status == "acknowledged" and not row["acknowledged_at"]:
             updates["acknowledged_at"] = ts
         if new_status == "resolved":
             updates["resolved_at"] = ts
