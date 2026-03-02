@@ -50,6 +50,7 @@
   .resolved-card { opacity: .7; }
   .resolved-card:hover { opacity: 1; }
   .resolved-info { font-size: .75rem; color: var(--muted); }
+  .tl-count { font-size: .65rem; color: var(--muted); margin-left: .3rem; }
 
   .empty { color: var(--muted); font-size: .85rem; padding: 1.5rem; text-align: center; }
   .export-link { font-size: .75rem; color: var(--accent); text-decoration: none; margin-left: auto; }
@@ -124,6 +125,7 @@
         <span class="badge {{ inc.severity }}">{{ inc.severity }}</span>
         <a href="{{ B }}/incidents/{{ inc.id }}">{{ inc.alert_name }}</a>
         <span class="status {{ inc.status }}">{{ inc.status }}</span>
+        {% if inc._timeline_count > 1 %}<span class="tl-count">📋 {{ inc._timeline_count }}</span>{% endif %}
       </div>
       <div class="meta">
         <span class="elapsed" data-fired="{{ inc.fired_at }}"></span>
@@ -164,6 +166,7 @@
         <span class="badge {{ inc.severity }}">{{ inc.severity }}</span>
         <a href="{{ B }}/incidents/{{ inc.id }}">{{ inc.alert_name }}</a>
         <span class="status resolved">resolved</span>
+        {% if inc._timeline_count > 1 %}<span class="tl-count">📋 {{ inc._timeline_count }}</span>{% endif %}
       </div>
       <div class="resolved-info">
         {{ inc.resolved_at }} · {{ inc.resolution_type or '-' }}

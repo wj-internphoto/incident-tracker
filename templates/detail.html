@@ -125,8 +125,8 @@
       <div class="tl-header">
         <span class="tl-type">{{ event_icons.get(ev.event_type, ev.event_type) }}</span>
         <span style="display:flex;align-items:center;gap:.3rem;">
-          {% if ev.event_type == 'memo' %}
-          <button class="tl-del" onclick="delEvent({{ ev.id }})" title="삭제">✕</button>
+          {% if ev.event_type in ('memo', 'status_change', 'acknowledged') %}
+          <button class="tl-del" onclick="delEvent({{ ev.id }}, '{{ ev.event_type }}')" title="삭제">✕</button>
           {% endif %}
           <span class="tl-time">{{ ev.created_at }}</span>
         </span>
@@ -146,9 +146,6 @@
   <div class="action-row">
     {% if incident.status == 'firing' %}
     <button class="btn btn-ack" onclick="changeStatus('acknowledged')">👀 확인</button>
-    {% endif %}
-    {% if incident.status in ('firing', 'acknowledged') %}
-    <button class="btn btn-inv" onclick="changeStatus('investigating')">🔍 조사 착수</button>
     {% endif %}
     <button class="btn btn-res" onclick="changeStatus('resolved')">✅ 해결</button>
     <a class="btn btn-export" href="{{ B }}/api/incidents/{{ incident.id }}/export" target="_blank">📄 내보내기</a>
@@ -187,9 +184,10 @@ async function changeStatus(status) {
   location.reload();
 }
 
-async function delEvent(evId) {
+async function delEvent(evId, evType) {
   if (_busy) return;
-  if (!confirm('이 메모를 삭제하시겠습니까?')) return;
+  const msg = evType === 'memo' ? '이 메모를 삭제하시겠습니까?' : '이 상태 변경을 되돌리시겠습니까?';
+  if (!confirm(msg)) return;
   _busy = true;
   await fetch(B + '/api/timeline/' + evId, { method: 'DELETE' });
   location.reload();

@@ -111,7 +111,7 @@
   <div class="layer-header">
     <div class="layer-num">1</div>
     <div class="layer-title">사용자 경험 계층</div>
-    <div class="layer-count">9 rules</div>
+    <div class="layer-count">10 rules</div>
   </div>
   <div class="group-cards">
     <div class="group-card">
@@ -135,6 +135,13 @@
         <div class="rule-info">
           <div class="rule-title">Blackbox 프로브 응답 지연</div>
           <div class="rule-meta"><span>duration &gt; 5s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">CORS 프로브 실패</div>
+          <div class="rule-meta"><span>probe_success{probe="cors"} &lt; 1</span><span>for: 30s</span></div>
         </div>
       </div>
     </div>

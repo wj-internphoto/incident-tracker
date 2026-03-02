@@ -147,21 +147,40 @@ def _process_alert(fingerprint, status, labels, annotations, starts_at, ends_at)
                 "SELECT id, status FROM incidents WHERE fingerprint = ? AND status != 'resolved' ORDER BY fired_at DESC LIMIT 1",
                 (fingerprint,)
             ).fetchone()
-            if not row:
-                return
 
-            incident_id = row["id"]
-            old_status = row["status"]
-            db.execute(
-                "UPDATE incidents SET status = 'resolved', resolved_at = ?, resolution_type = 'auto' WHERE id = ?",
-                (ts, incident_id)
-            )
-            db.execute(
-                """INSERT INTO timeline_events
-                   (incident_id, event_type, old_status, new_status, note, created_at)
-                   VALUES (?, 'alert_resolved', ?, 'resolved', '자동 해소', ?)""",
-                (incident_id, old_status, ts)
-            )
+            if row:
+                # 미해결 인시던트 → 자동 해소
+                incident_id = row["id"]
+                old_status = row["status"]
+                db.execute(
+                    "UPDATE incidents SET status = 'resolved', resolved_at = ?, resolution_type = 'auto' WHERE id = ?",
+                    (ts, incident_id)
+                )
+                db.execute(
+                    """INSERT INTO timeline_events
+                       (incident_id, event_type, old_status, new_status, note, created_at)
+                       VALUES (?, 'alert_resolved', ?, 'resolved', '자동 해소', ?)""",
+                    (incident_id, old_status, ts)
+                )
+            else:
+                # 이미 수동 해결된 인시던트 → resolution_type 업데이트 + 타임라인 기록
+                manual_row = db.execute(
+                    """SELECT id FROM incidents
+                       WHERE fingerprint = ? AND status = 'resolved' AND resolution_type = 'manual'
+                       ORDER BY resolved_at DESC LIMIT 1""",
+                    (fingerprint,)
+                ).fetchone()
+                if manual_row:
+                    db.execute(
+                        "UPDATE incidents SET resolution_type = 'manual/auto' WHERE id = ?",
+                        (manual_row["id"],)
+                    )
+                    db.execute(
+                        """INSERT INTO timeline_events
+                           (incident_id, event_type, old_status, new_status, note, created_at)
+                           VALUES (?, 'alert_resolved', 'resolved', 'resolved', '자동 해소 알림 수신', ?)""",
+                        (manual_row["id"], ts)
+                    )
 
 
 # ── API ───────────────────────────────────────────────────────────────────────
@@ -206,7 +225,7 @@ async def update_incident(incident_id: int, request: Request):
     note = body.get("note", "")
     ts = now_kst()
 
-    valid_statuses = ("acknowledged", "investigating", "resolved")
+    valid_statuses = ("acknowledged", "resolved")
     if new_status not in valid_statuses:
         raise HTTPException(400, f"유효한 상태: {valid_statuses}")
     if new_status == "resolved" and not note.strip():
@@ -260,15 +279,36 @@ async def add_memo(incident_id: int, request: Request):
 
 @app.delete("/api/timeline/{event_id}")
 async def delete_timeline_event(event_id: int):
-    """타임라인 이벤트 삭제 (메모만 삭제 가능)."""
+    """타임라인 이벤트 삭제 (메모/상태변경 삭제 가능, 상태변경 시 롤백)."""
     with get_db() as db:
         row = db.execute(
-            "SELECT id, event_type FROM timeline_events WHERE id = ?", (event_id,)
+            "SELECT id, incident_id, event_type, old_status, new_status FROM timeline_events WHERE id = ?",
+            (event_id,)
         ).fetchone()
         if not row:
             raise HTTPException(404, "이벤트를 찾을 수 없습니다")
-        if row["event_type"] not in ("memo",):
-            raise HTTPException(400, "메모만 삭제할 수 있습니다")
+        if row["event_type"] not in ("memo", "status_change", "acknowledged"):
+            raise HTTPException(400, "삭제할 수 없는 이벤트입니다")
+
+        # 상태변경 이벤트 삭제 시 롤백
+        if row["event_type"] in ("status_change", "acknowledged") and row["old_status"]:
+            incident = db.execute(
+                "SELECT id, status FROM incidents WHERE id = ?", (row["incident_id"],)
+            ).fetchone()
+            # 현재 상태가 삭제할 이벤트의 new_status와 일치할 때만 롤백
+            if incident and incident["status"] == row["new_status"]:
+                updates = {"status": row["old_status"]}
+                if row["new_status"] == "acknowledged":
+                    updates["acknowledged_at"] = None
+                if row["new_status"] == "resolved":
+                    updates["resolved_at"] = None
+                    updates["resolution_type"] = None
+                set_clause = ", ".join(f"{k} = ?" for k in updates)
+                db.execute(
+                    f"UPDATE incidents SET {set_clause} WHERE id = ?",
+                    (*updates.values(), row["incident_id"])
+                )
+
         db.execute("DELETE FROM timeline_events WHERE id = ?", (event_id,))
     return {"status": "ok"}
 
@@ -533,6 +573,17 @@ async def ui_index(
             "SELECT DISTINCT severity FROM incidents ORDER BY severity"
         ).fetchall()]
 
+        # 타임라인 이벤트 개수 조회
+        all_ids = [r["id"] for r in active] + [r["id"] for r in resolved]
+        timeline_counts = {}
+        if all_ids:
+            placeholders = ",".join("?" * len(all_ids))
+            for r in db.execute(
+                f"SELECT incident_id, COUNT(*) c FROM timeline_events WHERE incident_id IN ({placeholders}) GROUP BY incident_id",
+                all_ids
+            ).fetchall():
+                timeline_counts[r["incident_id"]] = r["c"]
+
     total_pages = max(1, (total + per_page - 1) // per_page)
 
     def _parse_labels(row):
@@ -541,6 +592,7 @@ async def ui_index(
             d["_labels"] = json.loads(d.get("labels") or "{}")
         except Exception:
             d["_labels"] = {}
+        d["_timeline_count"] = timeline_counts.get(d["id"], 0)
         return d
 
     return templates.TemplateResponse("index.html", {
