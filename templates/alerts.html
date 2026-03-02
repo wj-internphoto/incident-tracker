@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>알람 규칙 현황 — Incident Tracker</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3a;
+    --text: #e4e4e7; --muted: #888; --accent: #6366f1;
+    --red: #ef4444; --yellow: #eab308; --green: #22c55e; --blue: #3b82f6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Pretendard', sans-serif; background: var(--bg); color: var(--text); padding: 1.5rem; max-width: 960px; margin: 0 auto; }
+
+  /* 헤더 */
+  .page-header { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; }
+  .page-header h1 { font-size: 1.3rem; }
+  .back-link { color: var(--accent); text-decoration: none; font-size: .8rem; padding: .25rem .6rem; border: 1px solid var(--accent); border-radius: .3rem; }
+  .back-link:hover { background: rgba(99,102,241,.15); }
+  .subtitle { font-size: .8rem; color: var(--muted); margin-bottom: 1.25rem; }
+
+  /* 듀얼 경로 배너 */
+  .dual-path { display: flex; gap: .75rem; margin-bottom: 1.5rem; }
+  .path-card { flex: 1; border-radius: .6rem; padding: .875rem 1rem; text-align: center; }
+  .path-primary { background: #1a2332; border: 1.5px solid var(--blue); }
+  .path-backup  { background: var(--surface); border: 1.5px solid var(--border); }
+  .path-label { font-size: .6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: .25rem; }
+  .path-primary .path-label { color: var(--blue); }
+  .path-backup  .path-label { color: var(--muted); }
+  .path-stat { font-size: 1.75rem; font-weight: 800; margin-bottom: .1rem; }
+  .path-primary .path-stat { color: var(--blue); }
+  .path-backup  .path-stat { color: var(--muted); }
+  .path-stat small { font-size: .8rem; font-weight: 500; }
+  .path-primary .path-stat small { color: #79c0ff; }
+  .path-backup  .path-stat small { color: #6e7681; }
+  .path-desc { font-size: .7rem; color: var(--muted); }
+  .path-primary .path-desc { color: #79c0ff; }
+
+  .arrow-down { text-align: center; color: var(--border); font-size: 1.1rem; margin: .25rem 0 1rem; letter-spacing: 8px; }
+
+  /* 계층 */
+  .layer { margin-bottom: 1rem; border-radius: .75rem; padding: 1rem; }
+  .layer-header { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; padding-left: .25rem; }
+  .layer-num {
+    width: 1.5rem; height: 1.5rem; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .75rem; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .layer-title { font-size: .875rem; font-weight: 700; }
+  .layer-count { margin-left: auto; font-size: .75rem; font-weight: 600; padding: .1rem .6rem; border-radius: .6rem; }
+
+  /* 그룹 카드 */
+  .group-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .75rem; }
+  .group-card {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: .6rem; padding: .875rem 1rem;
+    transition: border-color .2s;
+  }
+  .group-card:hover { border-color: var(--accent); }
+  .group-name { font-size: .8rem; font-weight: 700; margin-bottom: .6rem; }
+  .group-badge {
+    display: inline-block; font-size: .6rem; font-weight: 600;
+    padding: .1rem .4rem; border-radius: .5rem; margin-left: .35rem; vertical-align: middle;
+  }
+
+  /* 개별 규칙 */
+  .rule { display: flex; align-items: flex-start; gap: .5rem; padding: .375rem 0; border-top: 1px solid #21262d; font-size: .72rem; }
+  .rule:first-child { border-top: none; }
+  .sev {
+    flex-shrink: 0; font-size: .55rem; font-weight: 700;
+    padding: .1rem .35rem; border-radius: .35rem;
+    min-width: 3.5rem; text-align: center; margin-top: .05rem;
+  }
+  .sev-critical { background: rgba(239,68,68,.15); color: var(--red); }
+  .sev-warning  { background: rgba(234,179,8,.15); color: var(--yellow); }
+  .rule-info { flex: 1; }
+  .rule-title { font-weight: 600; color: var(--text); line-height: 1.3; }
+  .rule-meta { font-size: .62rem; color: var(--muted); margin-top: .1rem; display: flex; gap: .6rem; flex-wrap: wrap; }
+  .rule-meta span { white-space: nowrap; }
+
+  /* 계층 색상 — Layer 1: 파랑 */
+  .layer-1 { background: #1a2332; border: 1px solid rgba(31,111,235,.27); }
+  .layer-1 .layer-num { background: #1f6feb; }
+  .layer-1 .layer-title { color: #58a6ff; }
+  .layer-1 .layer-count { background: rgba(31,111,235,.13); color: #58a6ff; }
+  .layer-1 .group-name { color: #58a6ff; }
+  .layer-1 .group-badge { background: rgba(31,111,235,.1); color: #79c0ff; }
+
+  /* Layer 2: 초록 */
+  .layer-2 { background: #1d2a1d; border: 1px solid rgba(35,134,53,.27); }
+  .layer-2 .layer-num { background: #238636; }
+  .layer-2 .layer-title { color: #3fb950; }
+  .layer-2 .layer-count { background: rgba(35,134,53,.13); color: #3fb950; }
+  .layer-2 .group-name { color: #3fb950; }
+  .layer-2 .group-badge { background: rgba(35,134,53,.1); color: #56d364; }
+
+  /* Layer 3: 노랑 */
+  .layer-3 { background: #2a2418; border: 1px solid rgba(158,106,3,.27); }
+  .layer-3 .layer-num { background: #9e6a03; }
+  .layer-3 .layer-title { color: #d29922; }
+  .layer-3 .layer-count { background: rgba(158,106,3,.13); color: #d29922; }
+  .layer-3 .group-name { color: #d29922; }
+  .layer-3 .group-badge { background: rgba(158,106,3,.1); color: #e3b341; }
+
+  /* Layer 4: 보라 */
+  .layer-4 { background: #231a2e; border: 1px solid rgba(137,87,229,.27); }
+  .layer-4 .layer-num { background: #8957e5; }
+  .layer-4 .layer-title { color: #bc8cff; }
+  .layer-4 .layer-count { background: rgba(137,87,229,.13); color: #bc8cff; }
+  .layer-4 .group-name { color: #bc8cff; }
+  .layer-4 .group-badge { background: rgba(137,87,229,.1); color: #d2a8ff; }
+
+  /* Layer 5: 빨강 */
+  .layer-5 { background: #2a1a1a; border: 1px solid rgba(218,54,51,.27); }
+  .layer-5 .layer-num { background: #da3633; }
+  .layer-5 .layer-title { color: #f85149; }
+  .layer-5 .layer-count { background: rgba(218,54,51,.13); color: #f85149; }
+  .layer-5 .group-name { color: #f85149; }
+  .layer-5 .group-badge { background: rgba(218,54,51,.1); color: #ff7b72; }
+
+  /* 백업 섹션 */
+  .backup-section {
+    margin-top: 1.5rem;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: .75rem; padding: 1rem;
+  }
+  .backup-section .layer-num { background: #484f58; }
+  .backup-section .layer-title { color: var(--muted); }
+  .backup-section .group-name { color: var(--muted); }
+  .backup-section .group-badge { background: rgba(72,79,88,.1); color: var(--muted); }
+  .backup-section .layer-count { background: rgba(72,79,88,.13); color: var(--muted); }
+  .backup-tag {
+    display: inline-block; font-size: .55rem; font-weight: 700;
+    padding: .1rem .4rem; border-radius: .35rem;
+    background: rgba(72,79,88,.13); color: var(--muted);
+    margin-left: .5rem; vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>알람 규칙 현황</h1>
+  <a class="back-link" href="{{ B }}/">← 인시던트 목록</a>
+</div>
+<p class="subtitle">듀얼 경로: Grafana Alerting(주) + PrometheusRule(백업) · Dooray 웹훅 알림</p>
+
+<!-- 듀얼 경로 배너 -->
+<div class="dual-path">
+  <div class="path-card path-primary">
+    <div class="path-label">Primary — Grafana Alerting</div>
+    <div class="path-stat">54<small> rules</small></div>
+    <div class="path-desc">13 그룹 · Grafana → Dooray Webhook</div>
+  </div>
+  <div class="path-card path-backup">
+    <div class="path-label">Backup — PrometheusRule</div>
+    <div class="path-stat">12<small> rules</small></div>
+    <div class="path-desc">3 그룹 · Prometheus → Alertmanager → Dooray</div>
+  </div>
+</div>
+
+<div class="arrow-down">▼ ▼ ▼</div>
+
+<!-- Layer 1: 사용자 경험 -->
+<div class="layer layer-1">
+  <div class="layer-header">
+    <div class="layer-num">1</div>
+    <div class="layer-title">사용자 경험 계층</div>
+    <div class="layer-count">9 rules</div>
+  </div>
+  <div class="group-cards">
+    <div class="group-card">
+      <div class="group-name">blackbox-probes <span class="group-badge">30s 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">Blackbox 프로브 실패</div>
+          <div class="rule-meta"><span>probe_success &lt; 1</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Blackbox 프로브 HTTP 에러</div>
+          <div class="rule-meta"><span>status_code &gt; 399</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Blackbox 프로브 응답 지연</div>
+          <div class="rule-meta"><span>duration &gt; 5s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">tls-certificate <span class="group-badge">1m 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">TLS 인증서 30일 이내 만료 예정</div>
+          <div class="rule-meta"><span>cert_expiry &lt; 30d</span><span>for: 1h</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">TLS 인증서 7일 이내 만료 (긴급)</div>
+          <div class="rule-meta"><span>cert_expiry &lt; 7d</span><span>for: 1h</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">TLS 인증서 만료됨</div>
+          <div class="rule-meta"><span>cert_expiry &lt; 0d</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">synthetic-monitoring (E2E) <span class="group-badge">1m 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">E2E 기능 테스트 실패</div>
+          <div class="rule-meta"><span>e2e FAIL + login-self FAIL</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">E2E 테스트 응답 지연</div>
+          <div class="rule-meta"><span>duration &gt; 30s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">E2E 테스트 Timeout 임박</div>
+          <div class="rule-meta"><span>duration &gt; 120s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Layer 2: 애플리케이션 -->
+<div class="layer layer-2">
+  <div class="layer-header">
+    <div class="layer-num">2</div>
+    <div class="layer-title">애플리케이션 계층</div>
+    <div class="layer-count">13 rules</div>
+  </div>
+  <div class="group-cards">
+    <div class="group-card">
+      <div class="group-name">photo-backend <span class="group-badge">1m 간격 · 11 rules</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend 서비스 다운</div>
+          <div class="rule-meta"><span>replicas == 0</span><span>for: 1m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend 에러율 높음</div>
+          <div class="rule-meta"><span>5xx &gt; 10%</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend 에러율 주의</div>
+          <div class="rule-meta"><span>5xx &gt; 5%</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend 응답 지연</div>
+          <div class="rule-meta"><span>P99 &gt; 1s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend 메모리 사용량 높음</div>
+          <div class="rule-meta"><span>memory &gt; 80% limit</span><span>for: 10m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend CPU Throttling 발생</div>
+          <div class="rule-meta"><span>throttle &gt; 25%</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend OOM Kill 발생</div>
+          <div class="rule-meta"><span>OOMKilled &gt; 0</span><span>즉시</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend Pod 재시작 빈번</div>
+          <div class="rule-meta"><span>restart &gt; 3/15m</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend DB Pool 사용률 높음</div>
+          <div class="rule-meta"><span>pool &gt; 80%</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend HPA 최대치 도달</div>
+          <div class="rule-meta"><span>current ≥ max replicas</span><span>for: 10m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Photo Backend Readiness 진동</div>
+          <div class="rule-meta"><span>ready 변경 &gt; 4/15m</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">log-alerts <span class="group-badge">Loki · 1m 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">FATAL 로그 감지</div>
+          <div class="rule-meta"><span>count(FATAL) &gt; 0</span><span>즉시</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">ERROR 로그 폭주</div>
+          <div class="rule-meta"><span>count(ERROR/5m) &gt; 5</span><span>즉시</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Layer 3: Node/OS -->
+<div class="layer layer-3">
+  <div class="layer-header">
+    <div class="layer-num">3</div>
+    <div class="layer-title">Node / OS 계층</div>
+    <div class="layer-count">5 rules</div>
+  </div>
+  <div class="group-cards">
+    <div class="group-card">
+      <div class="group-name">infrastructure <span class="group-badge">1m 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">노드 다운</div>
+          <div class="rule-meta"><span>node_exporter up &lt; 1</span><span>for: 2m</span><span>noData=Alerting</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">노드 CPU 사용률 높음</div>
+          <div class="rule-meta"><span>CPU &gt; 70%</span><span>for: 10m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">노드 메모리 사용률 높음</div>
+          <div class="rule-meta"><span>Memory &gt; 80%</span><span>for: 10m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">노드 디스크 공간 부족</div>
+          <div class="rule-meta"><span>Disk &gt; 80%</span><span>for: 10m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">노드 디스크 공간 위험</div>
+          <div class="rule-meta"><span>Disk &gt; 90%</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Layer 4: Kubernetes -->
+<div class="layer layer-4">
+  <div class="layer-header">
+    <div class="layer-num">4</div>
+    <div class="layer-title">Kubernetes 계층</div>
+    <div class="layer-count">9 rules</div>
+  </div>
+  <div class="group-cards">
+    <div class="group-card">
+      <div class="group-name">kubernetes <span class="group-badge">1m 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">Pod CrashLooping</div>
+          <div class="rule-meta"><span>restart &gt; 3/15m</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">traefik-ingress <span class="group-badge">1m 간격 · 4 rules</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">Traefik Ingress 에러 (502/503/504)</div>
+          <div class="rule-meta"><span>error &gt; 1/min</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Rate Limit 대량 발동 (429)</div>
+          <div class="rule-meta"><span>429 &gt; 10/min</span><span>for: 3m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Ingress 응답 지연 (P95 &gt; 2s)</div>
+          <div class="rule-meta"><span>p95 &gt; 2s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Ingress 커넥션 폭증</div>
+          <div class="rule-meta"><span>connections &gt; 500</span><span>for: 3m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">argocd <span class="group-badge">1m 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">ArgoCD 앱 OutOfSync</div>
+          <div class="rule-meta"><span>sync_status=OutOfSync</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">ArgoCD Sync 실패</div>
+          <div class="rule-meta"><span>sync fail &gt; 2/30m</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">ArgoCD 앱 Degraded</div>
+          <div class="rule-meta"><span>health=Degraded|Missing</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">synthetic-monitoring (Infra) <span class="group-badge">1m 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">Kuberhealthy 인프라 체크 실패</div>
+          <div class="rule-meta"><span>DNS/Deployment/Daemonset</span><span>for: 2m</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Layer 5: Cloud Infrastructure -->
+<div class="layer layer-5">
+  <div class="layer-header">
+    <div class="layer-num">5</div>
+    <div class="layer-title">Cloud Infrastructure 계층</div>
+    <div class="layer-count">18 rules</div>
+  </div>
+  <div class="group-cards">
+    <div class="group-card">
+      <div class="group-name">mysql-exporter <span class="group-badge">1m 간격 · 5 rules</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQL 연결 실패</div>
+          <div class="rule-meta"><span>mysql_up &lt; 1</span><span>for: 1m</span><span>noData=Alerting</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQL 커넥션 80% 초과</div>
+          <div class="rule-meta"><span>connections &gt; 80%</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQL Slow Query 빈발</div>
+          <div class="rule-meta"><span>&gt; 5건/min</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQL 복제 지연</div>
+          <div class="rule-meta"><span>lag &gt; 30s (exporter)</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQL 복제 지연 심각</div>
+          <div class="rule-meta"><span>lag &gt; 60s (NHN API)</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">nhn-cloud-services <span class="group-badge">1m 간격 · 10 rules</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">CDN Referrer 화이트리스트 누락</div>
+          <div class="rule-meta"><span>403 Forbidden 가능</span><span>즉시</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">CDN 서비스 장애</div>
+          <div class="rule-meta"><span>cdn_up &lt; 1</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">GSLB Pool 비정상</div>
+          <div class="rule-meta"><span>pool_healthy &lt; 1</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">RDS CPU 사용률 높음</div>
+          <div class="rule-meta"><span>CPU &gt; 80%</span><span>for: 10m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">RDS 스토리지 사용률 높음</div>
+          <div class="rule-meta"><span>Storage &gt; 85%</span><span>for: 10m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">OBS TempURL 장애</div>
+          <div class="rule-meta"><span>tempurl_up &lt; 1</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">OBS TempURL 응답 지연</div>
+          <div class="rule-meta"><span>GET &gt; 5s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">LB 풀 멤버 유실 (Traefik)</div>
+          <div class="rule-meta"><span>member=0 + lb_up=1</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">LB Pool 멤버 없음 (Non-Traefik)</div>
+          <div class="rule-meta"><span>member=0 + lb_up=1</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">LB 풀 전체 멤버 비활성</div>
+          <div class="rule-meta"><span>all members down</span><span>for: 2m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">terraform-drift <span class="group-badge">5m 간격</span></div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Terraform 인프라 드리프트 감지</div>
+          <div class="rule-meta"><span>drift_status == 1</span><span>즉시</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">Terraform Plan 실행 실패</div>
+          <div class="rule-meta"><span>drift_status == 2</span><span>즉시</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">Terraform Drift 체크 미실행</div>
+          <div class="rule-meta"><span>last_check &gt; 48h</span><span>즉시</span><span>noData=Alerting</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Backup: PrometheusRule -->
+<div class="backup-section">
+  <div class="layer-header">
+    <div class="layer-num">⚡</div>
+    <div class="layer-title">PrometheusRule 백업 경로</div>
+    <span class="backup-tag">Prometheus → Alertmanager → Dooray</span>
+    <div class="layer-count">12 rules</div>
+  </div>
+  <div class="group-cards">
+    <div class="group-card">
+      <div class="group-name">photo-backend-alerts <span class="group-badge">5 rules</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">PhotoBackendHighErrorRate</div>
+          <div class="rule-meta"><span>4xx+5xx &gt; 5%</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">PhotoBackendSlowResponse</div>
+          <div class="rule-meta"><span>P95 &gt; 1s</span><span>for: 3m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">PhotoBackendHighMemory</div>
+          <div class="rule-meta"><span>RSS &gt; 400MB</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">PhotoBackendDown</div>
+          <div class="rule-meta"><span>up == 0</span><span>for: 2m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">PhotoBackendFrequentRestarts</div>
+          <div class="rule-meta"><span>restart &gt; 3/1h</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">blackbox-alerts <span class="group-badge">3 rules</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">BlackboxProbeFailed</div>
+          <div class="rule-meta"><span>probe_success == 0</span><span>for: 3m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">BlackboxProbeHttpError</div>
+          <div class="rule-meta"><span>status ≠ 200</span><span>for: 3m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">BlackboxProbeSlow</div>
+          <div class="rule-meta"><span>duration &gt; 5s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="group-card">
+      <div class="group-name">mysql-exporter-alerts <span class="group-badge">4 rules</span></div>
+      <div class="rule">
+        <span class="sev sev-critical">CRITICAL</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQLDown</div>
+          <div class="rule-meta"><span>mysql_up == 0</span><span>for: 3m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQLConnectionsHigh</div>
+          <div class="rule-meta"><span>connections &gt; 80%</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQLSlowQueries</div>
+          <div class="rule-meta"><span>&gt; 5건/min</span><span>for: 5m</span></div>
+        </div>
+      </div>
+      <div class="rule">
+        <span class="sev sev-warning">WARNING</span>
+        <div class="rule-info">
+          <div class="rule-title">MySQLReplicationLag</div>
+          <div class="rule-meta"><span>lag &gt; 30s</span><span>for: 5m</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

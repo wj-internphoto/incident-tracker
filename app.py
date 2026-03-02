@@ -560,6 +560,12 @@ async def ui_index(
     })
 
 
+@app.get("/alerts", response_class=HTMLResponse)
+async def ui_alerts(request: Request):
+    """알람 규칙 현황 뷰."""
+    return templates.TemplateResponse("alerts.html", {"request": request})
+
+
 @app.get("/incidents/{incident_id}", response_class=HTMLResponse)
 async def ui_detail(request: Request, incident_id: int):
     """상세 뷰 — 타임라인."""
